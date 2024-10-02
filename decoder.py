@@ -126,8 +126,9 @@ def is_valid_phrase(phrase, all_names, english_words):
 def create_letter_note_mapping(sc):
     """
     Create a mapping from letters to note names based on the scale.
+    Maps all 26 letters of the alphabet to the degrees of the scale.
     """
-    letters = string.ascii_lowercase
+    letters = string.ascii_lowercase  # 'a' to 'z'
     mapping = {}
     degrees = list(range(1, 8))  # Diatonic degrees 1-7
     degree_count = len(degrees)
@@ -144,6 +145,7 @@ def create_letter_note_mapping(sc):
         mapping[letters[idx]] = pitch_name
         idx += 1
 
+    # Ensure that 'z' is mapped as well, completing all 26 letters.
     logging.debug(f"Letter to Note Mapping: {mapping}")
     return mapping
 
@@ -202,7 +204,7 @@ def segment_into_words(decoded_chars, words_set, prefixes_set, max_word_length):
                     continue  # Possible prefix, continue searching
     return dp[n]
 
-def process_root_mode(root_mode_tuple, melody_notes, words_set, prefixes_set, max_word_length, all_names, english_words):
+def process_root_mode(root_mode_tuple, melody_notes, words_set, prefixes_set, max_word_length, all_names, english_words, single_words):
     """
     Process a single root and mode to decode the melody.
     """
@@ -227,6 +229,9 @@ def process_root_mode(root_mode_tuple, melody_notes, words_set, prefixes_set, ma
                     'decoded_scale': decode_mode_name,
                     'num_words': len(phrase)
                 })
+                # Collect single-word phrases
+                if len(phrase) == 1:
+                    single_words.add(phrase[0])
         return results
     except Exception as e:
         logging.error(f"Error processing {decode_root} {decode_mode_name}: {e}")
@@ -263,6 +268,8 @@ def decode_tone_row_parallel(tone_row, root_modes, words_set, prefixes_set, max_
 
     logging.info(f"Starting decoding with {len(root_modes)} root-mode combinations.")
     pool = Pool(processes=cpu_count())
+    
+    single_words = set()  # Set to collect single words
     process_func = partial(
         process_root_mode,
         melody_notes=melody_notes,
@@ -270,7 +277,8 @@ def decode_tone_row_parallel(tone_row, root_modes, words_set, prefixes_set, max_
         prefixes_set=prefixes_set,
         max_word_length=max_word_length,
         all_names=all_names,
-        english_words=english_words
+        english_words=english_words,
+        single_words=single_words
     )
     try:
         all_results = pool.map(process_func, root_modes)
@@ -300,6 +308,14 @@ def decode_tone_row_parallel(tone_row, root_modes, words_set, prefixes_set, max_
             print(f"Phrase: \"{r['phrase']}\", Decoded in: {r['decoded_root_note']} {r['decoded_scale']}")
     else:
         logging.info("No valid English phrases found for the given tone row.")
+    
+    # Summarize single words
+    if single_words:
+        logging.info("\nSummary of Single Words:")
+        for word in sorted(single_words):
+            print(f"Single Word: \"{word}\"")
+    else:
+        logging.info("\nNo single words found.")
 
 def main():
     project_root = get_project_root()
